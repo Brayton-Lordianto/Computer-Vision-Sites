@@ -1,0 +1,137 @@
+<h1 id="project-1-web-report">Project 1 Web Report - Images of the Russian Empire: Colorizing the Prokudin-Gorskii photo collection </h1>
+<h1 id="background-and-details">Background and Details</h1>
+<p>Details can be found in this link: <a href="https://inst.eecs.berkeley.edu/~cs180/fa24/hw/proj1/">https://inst.eecs.berkeley.edu/~cs180/fa24/hw/proj1/</a></p>
+<p>Essentially, from an image with separate RGB channels, we first align the channels and then create the corresponding RGB image.</p>
+<h1 id="implementation">Implementation</h1>
+<p>Using <code>skimage</code> and <code>numpy</code>, we can easily extract image data and align the channels and create the RGB image. </p>
+<h2 id="input">Input</h2>
+<p>Images consist of 3 vertically stacked images of same size that are split in 3 channels. </p>
+<!-- table of images -->
+<table>
+<thead>
+<tr>
+<th>Cathedral</th>
+<th>Tobolsk</th>
+<th>Monastery</th>
+<th>Harvesters</th>
+<th>Melons</th>
+<th>Onion Church</th>
+<th>Self Portrait</th>
+<th>Three Generations</th>
+<th>Train</th>
+<th>Sculpture</th>
+<th>Lady</th>
+<th>Church</th>
+<th>Emir</th>
+<th>Icon</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+    <td><img src="data/cathedral.jpg" alt="Cathedral" style="width: 300px; height: 800px;"></td>
+    <td><img src="data/tobolsk.jpg" alt="Tobolsk" style="width: 300px; height: 800px;"></td>
+    <td><img src="data/monastery.jpg" alt="Monastery" style="width: 300px; height: 800px;"></td>
+    <td><img src="data/harvesters.png" alt="Harvesters" style="width: 300px; height: 800px;"></td>
+    <td><img src="data/melons.png" alt="Melons" style="width: 300px; height: 800px;"></td>
+    <td><img src="data/onion_church.png" alt="Onion Church" style="width: 300px; height: 800px;"></td>
+    <td><img src="data/self_portrait.png" alt="Self Portrait" style="width: 300px; height: 800px;"></td>
+    <td><img src="data/three_generations.png" alt="Three Generations" style="width: 300px; height: 800px;"></td>
+    <td><img src="data/train.png" alt="Train" style="width: 300px; height: 800px;"></td>
+    <td><img src="data/sculpture.png" alt="Sculpture" style="width: 300px; height: 800px;"></td>
+    <td><img src="data/lady.png" alt="Lady" style="width: 300px; height: 800px;"></td>
+    <td><img src="data/church.png" alt="Church" style="width: 300px; height: 800px;"></td>
+    <td><img src="data/emir.png" alt="Emir" style="width: 300px; height: 800px;"></td>
+    <td><img src="data/icon.png" alt="Icon" style="width: 300px; height: 800px;"></td>
+    </tr>
+</tbody>
+</table>
+<p>Therefore, we can extract the 3 channels by splitting the image into 3 parts.</p>
+<h2 id="alignment-for-small-images">Alignment for small images</h2>
+<p>The three channels as images are not aligned and therefore we need to align them. We can do this by cropping the borders and then using the <code>skimage</code> library to align the images. We also crop the borders so that they do not interfere with the alignment. I crop 15% of the outer borders for convenience.</p>
+<p>To align them, we think of displacing a channel to left/right/top/bottom with respect to the other channels. The best alignment either minimizes the L2 norm of the difference between the channels or maximizes the normalized cross-correlation (NCC) between the channels. Note that the window of displacement is important because it affects performance, so we don&#39;t want to large of a window, but at the same time we don&#39;t want to small of a window otherwise we might miss the best alignment. For small images, a window of 15 pixels is sufficient. </p>
+<p>Once aligned, we can simply stack the images to create the RGB image.</p>
+<h2 id="output-for-small-images">Output for small images</h2>
+<p>After trying both L2 norm and NCC, I found that NCC works better. The output image for small images is as follows:</p>
+<!-- table -->
+<table>
+<thead>
+<tr>
+<th>Cathedral</th>
+<th>Tobolsk</th>
+<th>Monastery</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><img src="results/cathedral.jpg" alt="Cathedral"></td>
+<td><img src="results/tobolsk.jpg" alt="Tobolsk"></td>
+<td><img src="results/monastery.jpg" alt="Monastery"></td>
+</tr>
+</tbody>
+</table>
+<h2 id="alignment-for-large-images">Alignment for large images</h2>
+<p>For large images, we need to use a larger window size for alignment. But it&#39;s unreasonable to use a large window size for the entire image because it would be computationally expensive. Therefore, we can use a pyramid approach where we first downsample the image and then align the downsampled image. Once aligned, we can upsample the image and then align the image again. We can repeat this process until we reach the original image size. The algorithm is as follows:</p>
+<ol>
+<li>read the image</li>
+<li>downsample the image that is less than 400x400 (since that is the size of small images)</li>
+<li>align the downsampled image and store the best displacement</li>
+<li>apply the displacement * 2 to an upscaled version (by 2) of the image and check for alignment in a local area (recommended 15 pixels) around the displacement</li>
+<li>repeat steps 2 and 3 until we reach the original image size</li>
+<li>return the aligned image</li>
+</ol>
+<p>This is implemented recursively in the <code>align</code> function. This way, we reduce the computational cost of aligning large images by having a smaller window size for alignment in total.</p>
+<p>This actually takes 24 minutes in total to run on a MacBook Pro 64 Gb RAM, M1 Max Processor for a total of 11 TIFF images. This means an average of 2 minutes per image.</p>
+<h2 id="output-for-large-images">Output for large images</h2>
+<p>The output image for large images is as follows:</p>
+<!-- table but vertical -->
+<table>
+<thead>
+  <!-- harvester -->
+    <tr>
+      <td>Harvesters</td>
+      <td><img src="results/harvesters.jpg" alt="Harvesters" style="height: 500px;"></td>
+    </tr>
+    <tr>
+        <td>Melons</td>
+        <td><img src="results/melons.jpg" alt="Melons" style="height: 500px;"></td>
+      </tr>
+      <tr>
+        <td>Onion Church</td>
+        <td><img src="results/onion_church.jpg" alt="Onion Church" style="height: 500px;"></td>
+      </tr>
+      <tr>
+        <td>Self Portrait</td>
+        <td><img src="results/self_portrait.jpg" alt="Self Portrait" style="height: 500px;"></td>
+      </tr>
+      <tr>
+        <td>Three Generations</td>
+        <td><img src="results/three_generations.jpg" alt="Three Generations" style="height: 500px;"></td>
+      </tr>
+      <tr>
+        <td>Train</td>
+        <td><img src="results/train.jpg" alt="Train" style="height: 500px;"></td>
+      </tr>
+      <tr>
+        <td>Sculpture</td>
+        <td><img src="results/sculpture.jpg" alt="Sculpture" style="height: 500px;"></td>
+      </tr>
+      <tr>
+        <td>Lady</td>
+        <td><img src="results/lady.jpg" alt="Lady" style="height: 500px;"></td>
+      </tr>
+      <tr>
+        <td>Church</td>
+        <td><img src="results/church.jpg" alt="Church" style="height: 500px;"></td>
+      </tr>
+      <tr>
+        <td>Emir</td>
+        <td><img src="results/emir.jpg" alt="Emir" style="height: 500px;"></td>
+      </tr>
+      <tr>
+        <td>Icon</td>
+        <td><img src="results/icon.jpg" alt="Icon" style="height: 500px;"></td>
+      </tr>
+</tbody>
+</table>
+<h1 id="conclusion">Conclusion</h1>
+<p>The results show promise and the algorithm works well for both small and large images. The alignment is accurate and the RGB images are created successfully.</p>
