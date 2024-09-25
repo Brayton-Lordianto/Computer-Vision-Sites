@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project 2 Web Report</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1, h2, h3 {
+            color: #2c3e50;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        code {
+            background-color: #f4f4f4;
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Project 2 Web Report</h1>
+
+    <h2>Background and Details</h2>
+    <p>Details can be found in this link: <a href="https://inst.eecs.berkeley.edu/~cs180/fa24/hw/proj2/">https://inst.eecs.berkeley.edu/~cs180/fa24/hw/proj2/</a></p>
+    <p>This project has to do with convolutional filters and frequencies of images for the purposes of edge detection, blurring, sharpening/embossing, morphing and multi-resolution blending. We explore what frequencies are and how they can be used to manipulate images. We also look at how to apply convolutional filters to images and how to blend images together or create an illusion of morphing between two images. This exists in the real world too! For example, Mona Lisa is a blend of a woman looking at the viewer and a woman looking away from the viewer from different frequencies, which gives it a strange effect of her eyes following you. We also see blending effects in movies and animations where two images are blended together to create a smooth transition. We will try to replicate this effect in this project for 2D images.</p>
+
+    <h2>Filters</h2>
+    <h3>Using Finite Difference Operator for Edge Detection (High-Pass Filter)</h3>
+    <p>Filters are used to manipulate images, or to "filter" out certain frequencies. This can be done in many ways, but we will start with the fundamental approach: the finite difference operator. This operator is used to approximate the derivative of an image. The derivative of an image is the rate of change of the image intensity. This can be used to detect edges in an image by getting the highest rate of change in intensity in both the x and y directions. This makes sense because edges are high frequency components of an image because they are the points where the intensity changes rapidly. We can use the finite difference operator to detect these edges, to get a kind of "edge filter" or high-pass filter.</p>
+    
+    <p>But how do we apply the finite difference operator to an image? We can use convolution! Convolution is a mathematical operation that takes two functions and produces a third function that represents how the shape of one is modified by the other. In the context of images, we can think of the image as a function of intensity values and the filter as a function of weights. We can slide the filter over the image and multiply the filter weights with the image intensity values and sum them up to get the output image. This is how we can apply the finite difference operator to an image. In practice, we separately convolve r, g, and b channels with the finite difference operator to get the x and y gradients of the image.</p>
+
+    <p>To go from the differentials to an edge image, we can take the gradient magnitude of the image. The gradient magnitude is the square root of the sum of the squares of the x and y gradients. This gives us the magnitude of the rate of change of intensity in the image. We can then binarize this image to get a binary image of the edges.</p>
+
+    <p>The finite difference operator is defined as follows:</p>
+
+    <p><code>D_x = [-1 1], D_y = [-1; 1]</code></p>
+
+    <p>Then to find the gradient magnitude, we can use the following formula:</p>
+
+    <p><code>G = sqrt((I * D_x)^2 + (I * D_y)^2)</code></p>
+
+    <p>Where <code>I</code> is the image and <code>*</code> is the convolution operator.</p>
+
+    <p>Consider the following image:</p>
+
+    <img src="data/cameraman.png" alt="Cameraman image">
+
+    <p>By convolving with the finite difference operator, we get the following images:</p>
+
+    <table>
+        <tr>
+            <th>D_x</th>
+            <td><img src="image.png" alt="D_x convolution result"></td>
+        </tr>
+        <tr>
+            <th>D_y</th>
+            <td><img src="image-1.png" alt="D_y convolution result"></td>
+        </tr>
+        <tr>
+            <th>Gradient Magnitude</th>
+            <td><img src="image-2.png" alt="Gradient Magnitude"></td>
+        </tr>
+        <tr>
+            <th>Gradient Magnitude Binarized</th>
+            <td><img src="image-3.png" alt="Gradient Magnitude Binarized"></td>
+        </tr>
+    </table>
+
+    <p>Qualitatively, we chose a threshold of 0.05 for the gradient magnitude to binarize the image. This is because the gradient magnitude is a value between 0 and 1, and we want to capture the edges in the image. We can see that the edges are captured in the binarized image.</p>
+
+    <h3>Derivative of Gaussian for Blurring (Low-Pass Filter)</h3>
+    <p>The above is great but it's noisy! We can use a Gaussian filter to smooth the image to reduce noise. The Gaussian filter is a low-pass filter that blurs the image. This is because the Gaussian filter is a bell curve that gives more weight to the center and less weight to the edges. This means that the high frequency components of the image are reduced and the low frequency components are preserved when we convolve an image with the Gaussian filter.</p>
+
+    <p>A Gaussian filter has two parameters: the standard deviation and the size of the filter. The standard deviation determines how much the filter blurs the image. The larger the standard deviation, the more the image is blurred. The size of the filter determines how much of the image is blurred. The larger the filter, the more the image is blurred. We can use the Gaussian filter to blur the image to reduce noise. I will denote W as the size of the filter and σ as the standard deviation. How do we choose these parameters? We can use the following formula to determine the size of the filter:</p>
+
+    <p><code>W = 6 * σ</code></p>
+
+    <p>This is because 99.7% of the Gaussian distribution is within 3 standard deviations of the mean. Therefore, we can use 6 standard deviations to get a good approximation of the Gaussian distribution. It's a mathematical property of the Gaussian distribution that we can use to determine the size of the filter.</p>
+
+    <p>So here, our approach is to blur the image with a Gaussian filter to reduce noise. We can then apply the finite difference operator to the blurred image to detect edges, using threshold 0.5.</p>
+
+    <p>Using the same image, we have:</p>
+
+    <table>
+        <tr>
+            <th>Blurred Image</th>
+            <td><img src="image-9.png" alt="Blurred Image"></td>
+        </tr>
+        <tr>
+            <th>D_x</th>
+            <td><img src="image-4.png" alt="D_x convolution result"></td>
+        </tr>
+        <tr>
+            <th>D_y</th>
+            <td><img src="image-5.png" alt="D_y convolution result"></td>
+        </tr>
+        <tr>
+            <th>Gradient Magnitude</th>
+            <td><img src="image-7.png" alt="Gradient Magnitude"></td>
+        </tr>
+        <tr>
+            <th>Gradient Magnitude Binarized</th>
+            <td><img src="image-6.png" alt="Gradient Magnitude Binarized"></td>
+        </tr>
+    </table>
+
+    <h4>Differences</h4>
+
+    <table>
+        <tr>
+            <th>Without Blur</th>
+            <th>With Blur</th>
+        </tr>
+        <tr>
+            <td><img src="image-3.png" alt="Without Blur"></td>
+            <td><img src="image-6.png" alt="With Blur"></td>
+        </tr>
+    </table>
+
+    <p>The difference is pretty clear. The edges are more smooth, and there is also less noise. All the while there are more edges represented in the image. This is because the Gaussian filter reduces noise and preserves the edges in the image.</p>
+
+    <p>We can actually do the same thing with a single convolution instead of two by creating a derivative of gaussian filters. we can convolve the gaussian with D_x and D_y and display the resulting DoG filters as images. Mathematically:</p>
+
+    <p><code>DoG_x = [-1 1] * G, DoG_y = [-1; 1] * G</code></p>
+
+    <p>Where G is the Gaussian filter.</p>
+
+    <p>Here is the result:</p>
+
+    <p><em>These images are normalized to be between 0 and 1 for visualization purposes.</em></p>
+
+    <table>
+        <tr>
+            <th>DoG_x</th>
+            <td><img src="image-10.png" alt="DoG_x"></td>
+        </tr>
+        <tr>
+            <th>DoG_y</th>
+            <td><img src="image-11.png" alt="DoG_y"></td>
+        </tr>
+    </table>
+
+    <p>And we get the same final result using only this filter:</p>
+
+    <table>
+        <tr>
+            <th>Gradient Magnitude</th>
+            <td><img src="image-12.png" alt="Gradient Magnitude"></td>
+        </tr>
+    </table>
+
+    <p>They look the same! We can even verify that using the DoG filter is numerically the same as using the two filters separately by convolving the cameraman image with the DoG filters and comparing the results to the gradient magnitude image. This is done in the code, if the reader is interested in seeing the results.</p>
+
+    <h2>Frequencies</h2>
+
+    <h3>Image Sharpening and Embossing</h3>
+    <p>We want to emboss an image. This is a cool effect where the image looks like it's popping out of the screen. How exactly does it work? It is all about getting edges in the image and then adding them to the images! Since edges are high frequency components of the image, we can use the high frequency components of the image to create the embossing effect.</p>
+
+    <p>But how can we get the high frequency components of the image? Instead of using the finite difference operator, we will use the "unsharp mask" filter. This filter is used to sharpen images by enhancing the high frequency components of the image. It does this by subtracting the blurred image from the original image. This leaves only the high frequency components of the image. We can then add this to the original image to get the embossing effect. The technique is called "unsharp masking" because it uses an unsharp (blurred) version of the image as a mask to identify and then enhance the areas that need sharpening. It's a bit of a misnomer because the final result is a sharpened image, not an unsharp one. The math is as follows:</p>
+
+    <p><code>f + α(f - f * g) = (1 + α)f - α f * g = f * ((1 + α)I - α g)</code></p>
+
+    <p>Where f is the original image, g is the Gaussian filter, and α is a parameter that determines how much the high frequency components are enhanced. Notice how we now rewrite the formula in terms of a single convolution!</p>
+
+    <p>After coding up the formula, we get the following results:</p>
+
+    <table>
+        <tr>
+            <th></th>
+            <th>Original Image</th>
+            <th>Sharpened Image</th>
+        </tr>
+        <tr>
+            <td>Taj Mahal, W = 11, α = 3</td>
+            <td><img src="image-13.png" alt="Original Taj Mahal"></td>
+            <td><img src="image-14.png" alt="Sharpened Taj Mahal"></td>
+        </tr>
+        <tr>
+            <td>Blobs, W = 11, α = 10</td>
+            <td><img src="image-15.png" alt="Original Blobs"></td>
+            <td><img src="image-16.png" alt="Sharpened Blobs"></td>
+        </tr>
+        <tr>
+            <td>Blurry David, W = 11, α = 10</td>
+            <td><img src="image-17.png" alt="Original Blurry David"></td>
+            <td><img src="image-18.png" alt="Sharpened Blurry David"></td>
+        </tr>
+    </table>
+
+    <p>We can also evaluate our result by blurring the image and then sharpening after:</p>
+
+    <table>
+        <tr>
+            <th>blurred</th>
+            <th>sharpened after blurring</th>
+        </tr>
+        <tr>
+            <td><img src="image-19.png" alt="Blurred Image"></td>
+            <td><img src="image-20.png" alt="Sharpened After Blurring"></td>
+        </tr>
+    </table>
+
+    <p>Certainly the <strong>difference</strong> is that the low frequency details are gone after blurring and sharpening does not bring them back. However, the edges are more pronounced in the sharpened image even when compared to the original image, given the right parameters of α and W.</p>
+
+    <p>You can notice very clearly that the edges are more pronounced in the sharpened image. Almost makes it look like it pops out of the screen!</p>
+
+    <h3>Hybrid Images</h3>
+<p>We can also create hybrid images by blending two images together. This is done by blending the low frequency components of one image with the high frequency components of another image. This creates an image that looks like one image up close and another image from far away. This is because the low frequency components of an image are the global features of the image that can be seen from far away, while the high frequency components are the local features of the image that can only be seen up close.</p>
+
+<p>What are the parameters that we can use to blend the images? We care about the cutoff frequency, which is the frequency at which the low frequency components of one image and the high frequency components of another image are blended. This actually relates to the window size and standard deviation of the Gaussian filter, which I estimated to be around 0.132 / cutoff for σ and 6 * σ for the window size. I reached this conclusion starting from mathematical definitions <a href="https://en.wikipedia.org/wiki/Gaussian_filter">here</a>.</p>
+
+<p><strong>General Approach Summarized</strong>: For our high pass filter, we use simply the opposite of the low pass filter, which is impulse filter - low pass filter. We then apply the low pass filter to the first image and the high pass filter to the second image via convolution. We then add the two images together to get the hybrid image.
+
+    <h3 id="results">Results</h3>
+    <table>
+    <thead>
+    <tr>
+    <th>First Image</th>
+    <th>Second Image</th>
+    <th>Hybrid Image</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr>
+    <td><img src="image-21.png" alt=""></td>
+    <td><img src="image-22.png" alt=""></td>
+    <td><img src="image-23.png" alt=""></td>
+    </tr>
+    </tbody>
+    </table>
+    <p><em>cutoff = 0.02</em></p>
+    <p>we can see from the first reusult that it works well since there is good alignment. We can see some more interesting results of these hybrids: </p>
+    <table>
+    <thead>
+    <tr>
+    <th>First Image</th>
+    <th>Second Image</th>
+    <th>Hybrid Image</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr>
+    <td><img src="image-24.png" alt=""></td>
+    <td><img src="image-25.png" alt=""></td>
+    <td><img src="image-26.png" alt=""></td>
+    </tr>
+    <tr>
+    <td><img src="image-27.png" alt=""></td>
+    <td><img src="image-28.png" alt=""></td>
+    <td><img src="image-29.png" alt=""></td>
+    </tr>
+    </tbody>
+    </table>
+    <p>The results are quite interesting! Traces of mystique hiding behind Jennifer Lawrence seen in the second while in the second we have a lion-ape! We can see that the hybrid images look like one image up close and another image from far away. This is because the low frequency components of one image and the high frequency components of another image are blended together. This creates an image that looks like one image up close and another image from far away. This is a cool effect that can be used in art and photography to create interesting images. However, alignment is key to getting a good hybrid image. If the images are not aligned properly, the hybrid image will not look good. </p>
+    <h3 id="fourier-analysis">Fourier Analysis</h3>
+    <p>Let&#39;s take a look at the fourier transforms of the iamges. </p>
+    <!-- result, input 1, input 2, filtered, hybrid -->
+    <table>
+    <thead>
+    <tr>
+    <th>Result</th>
+    <th><img src="image-33.png" alt="alt text"></th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr>
+    <td>Image 1 FFT</td>
+    <td><img src="image-34.png" alt="alt text"></td>
+    </tr>
+    <tr>
+    <td>Image 2 FFT</td>
+    <td><img src="image-35.png" alt="alt text"></td>
+    </tr>
+    <tr>
+    <td>Filtered Image 1 FFT</td>
+    <td><img src="image-36.png" alt="alt text"></td>
+    </tr>
+    <tr>
+    <td>Filtered Image 2 FFT</td>
+    <td><img src="image-37.png" alt="alt text"></td>
+    </tr>
+    <tr>
+    <td>Hybrid Image FFT</td>
+    <td><img src="image-38.png" alt="alt text"></td>
+    </tr>
+    </tbody>
+    </table>
+    <p>What do these images tell us? The FFT of the first image shows the low frequency components of the image. The FFT of the second image shows the high frequency components of the image. The filtered images show the low and high frequency components of the images after filtering. The hybrid image shows the low frequency components of the first image and the high frequency components of the second image. This is because the low frequency components of the first image and the high frequency components of the second image are blended together to create the hybrid image.</p>
+    <h3 id="failure">Failure</h3>
+    <p>Consider the following failed example, where alignment failed to give a good result: </p>
+    <table>
+    <thead>
+    <tr>
+    <th>First Image</th>
+    <th>Second Image</th>
+    <th>Hybrid Image</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr>
+    <td><img src="image-30.png" alt=""></td>
+    <td><img src="image-31.png" alt=""></td>
+    <td><img src="image-32.png" alt=""></td>
+    </tr>
+    </tbody>
+    </table>
+    <p>Even after alignment, because misfitting, the skeleton does not fit well with the bird image, giving just a bad result.</p>
+    <h2 id="laplacian-and-gaussian-stacks">Laplacian and Gaussian Stacks</h2>
+    <p>A gaussian stack is a series of images that are created by applying a gaussian filter to an image multiple times. This creates a series of images that are blurred at different levels. A laplacian stack is a series of images that are created by subtracting a gaussian filtered image from the original image. This creates a series of images that are the difference between the original image and the blurred image. Basically laplacian stacks hold the high frequency components of the image categorized, while the gaussian stack holds mixed up low frequency components that are used to get the laplacian stack.</p>
+    <p>The parameters that matter are the standard deviation of the gaussian filter and the number of levels in the stack. The standard deviation determines how much the image is blurred and the number of levels determines how many images are in the stack. We can use the gaussian stack to create a laplacian stack by subtracting the gaussian filtered image from the original image. This creates a series of images that are the difference between the original image and the blurred image. A good approach is to create a laplacian stack at the same time as the gaussian stack, which the reader can find in the code if interested. Essentially, at each level, we first get the gaussian filtered image and then subtract it from the previous level of the gaussian stack to get the laplacian stack at that level. Additionally, we have the last level of the gaussian stack at the highest level of the laplacian stack because we don&#39;t have a previous level to subtract from.</p>
+    <h3 id="results-of-laplacian-stack">Results of Laplacian Stack</h3>
+    <p>For the following images: </p>
+    <table>
+    <thead>
+    <tr>
+    <th></th>
+    <th>Apple</th>
+    <th>Orange</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr>
+    <td>Original</td>
+    <td><img src="image-47.png" alt=""></td>
+    <td><img src="image-49.png" alt=""></td>
+    </tr>
+    <tr>
+    <td>level 1</td>
+    <td><img src="image-39.png" alt=""></td>
+    <td><img src="image-43.png" alt=""></td>
+    </tr>
+    <tr>
+    <td>level 2</td>
+    <td><img src="image-40.png" alt=""></td>
+    <td><img src="image-44.png" alt=""></td>
+    </tr>
+    <tr>
+    <td>level 3</td>
+    <td><img src="image-41.png" alt=""></td>
+    <td><img src="image-45.png" alt=""></td>
+    </tr>
+    <tr>
+    <td>level 4</td>
+    <td><img src="image-42.png" alt=""></td>
+    <td><img src="image-46.png" alt=""></td>
+    </tr>
+    <tr>
+    <td>level 5</td>
+    <td><img src="image-66.png" alt=""></td>
+    <td><img src="image-67.png" alt=""></td>
+    </tr>
+    </tbody>
+    </table>
+    <p><em>W=45, levels=4 for this and all following results. results above of levels are normalized to be between 0 and 1 for visualization purposes.</em></p>
+    <p>Actually, we can verify that our laplacian stacks are right by collapsing it. We do this by simply adding everything in the laplacian stack together, which will result in the same images. </p>
+    <table>
+    <thead>
+    <tr>
+    <th></th>
+    <th>Apple</th>
+    <th>Orange</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr>
+    <td>Original</td>
+    <td><img src="image-47.png" alt=""></td>
+    <td><img src="image-49.png" alt=""></td>
+    </tr>
+    <tr>
+    <td>Collapsed</td>
+    <td><img src="image-48.png" alt=""></td>
+    <td><img src="image-50.png" alt=""></td>
+    </tr>
+    </tbody>
+    </table>
+    <h2 id="multi-resolution-blending">Multi-Resolution Blending</h2>
+    <p>We can use the laplacian stack to blend two images together. We basically use the following formula to blend the images:</p>
+    <p>$LS_l(i, j) = GR_l(i, j)LA_l(i, j) + (1 - GR_l(i, j))LB_l(i, j)$</p>
+    <p>where $LS_l$ is the laplacian stack at level $l$, $GR_l$ is the gaussian stack of the <strong>mask</strong> at level $l$, $LA_l$ is the laplacian stack of the first image at level $l$, and $LB_l$ is the laplacian stack of the second image at level $l$. This formula basically blends the two images together at each level of the laplacian stack. We can then collapse the laplacian stack to get the final blended image.</p>
+    <p>What is the mask and why is it important? The mask is the region of the image that is blended together. Basically it dictates how much of the first image and how much of the second image is blended together. Let&#39;s explore how this works. </p>
+    <h3 id="oraple">Oraple</h3>
+    <p>If we want to blend the apple and orange images together, we can use a mask that is half black and half white. This means that it will be half of one image and half of the other image per the x axis since the first half is white and the second half is black. It&#39;s essentially alpha blending, where the alpha value is 0.5. But we blur it and apply to each level of the laplacian stack so it is smoothlly blended. Here is the mask at some level: </p>
+    <p><img src="image-51.png" alt="alt text"></p>
+    <p>When we blend the images together, we get the following result: </p>
+    <p><img src="image-52.png" alt="alt text"></p>
+    <h3 id="more-results">More Results</h3>
+    <p>Check out an angry dog wearing a venitian mask!</p>
+    <table>
+    <thead>
+    <tr>
+    <th>Image 1</th>
+    <th>Image 2</th>
+    <th>Mask</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr>
+    <td><img src="image-53.png" alt=""></td>
+    <td><img src="image-54.png" alt=""></td>
+    <td><img src="image-55.png" alt=""> </td>
+    </tr>
+    </tbody>
+    </table>
+    <table>
+    <thead>
+    <tr>
+    <th>Blended Image 1</th>
+    <th>Blended Image 2</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr>
+    <td><img src="image-56.png" alt=""></td>
+    <td><img src="image-57.png" alt=""></td>
+    </tr>
+    </tbody>
+    </table>
+    <p><em>The second blend is by making the mask without white background. Mask was created by binarizing white+black and other colors.</em></p>
+    <p>And also Jennifer Lawrence transforming into Mystique!</p>
+    <table>
+    <thead>
+    <tr>
+    <th>Image 1</th>
+    <th>Image 2</th>
+    <th>Mask</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr>
+    <td><img src="image-58.png" alt=""></td>
+    <td><img src="image-59.png" alt=""></td>
+    <td><img src="image-60.png" alt=""></td>
+    </tr>
+    </tbody>
+    </table>
+    <p><img src="image-61.png" alt=""> </p>
+    <h3 id="intermediate-results">Intermediate Results</h3>
+    <p>My favorite result is still the beautiful Oraple! Let&#39;s see the intermediate results of the blending process.</p>
+    <table>
+    <thead>
+    <tr>
+    <th></th>
+    <th>Apple</th>
+    <th>Orange</th>
+    <th>Oraple</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr>
+    <td>level 1</td>
+    <td><img src="image-39.png" alt=""></td>
+    <td><img src="image-43.png" alt=""></td>
+    <td><img src="image-62.png" alt=""></td>
+    </tr>
+    <tr>
+    <td>level 2</td>
+    <td><img src="image-40.png" alt=""></td>
+    <td><img src="image-44.png" alt=""></td>
+    <td><img src="image-63.png" alt=""></td>
+    </tr>
+    <tr>
+    <td>level 3</td>
+    <td><img src="image-41.png" alt=""></td>
+    <td><img src="image-45.png" alt=""></td>
+    <td><img src="image-64.png" alt=""></td>
+    </tr>
+    <tr>
+    <td>level 4</td>
+    <td><img src="image-42.png" alt=""></td>
+    <td><img src="image-46.png" alt=""></td>
+    <td><img src="image-68.png" alt=""></td>
+    </tr>
+    <tr>
+    <td>level 5</td>
+    <td><img src="image-66.png" alt=""></td>
+    <td><img src="image-67.png" alt=""></td>
+    <td><img src="image-65.png" alt=""></td>
+    </tr>
+    </tbody>
+    </table>
+    
