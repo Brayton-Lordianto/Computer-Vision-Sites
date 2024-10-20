@@ -118,4 +118,5 @@ To start off, I align the images after the warping and then blend them together 
 |---|---|---|
 | Image Set A | ![alt text](image-17.png) | ![alt text](image-18.png) |
 | Image Set B | ![alt text](image-19.png) | ![alt text](image-20.png) |
-| Image Set C | ![alt text](image-21.png) | ![alt text](image-22.png) |
+| Image Set C | ![alt ![alt text](image-29.png)text](image-21.png) | ![alt text](image-22.png) |
+![alt text](image-24.png)![alt text](image-25.png)![alt text](image-26.png)![alt text](image-27.png)![alt text](image-28.png)
