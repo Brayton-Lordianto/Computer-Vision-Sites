@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project 5 Report - Part 1</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1, h2, h3 {
+            color: #2c3e50;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            vertical-align: middle;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        code {
+            background-color: #f4f4f4;
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+        .table-3-col td img {
+            width: calc(100% - 10px);
+            height: auto;
+            display: block;
+            margin: 0 auto;
+        }
+        .table-4-col td img {
+            width: calc(100% - 10px);
+            height: auto;
+            display: block;
+            margin: 0 auto;
+        }
+        .table-5-col td img {
+            width: calc(100% - 10px);
+            height: auto;
+            display: block;
+            margin: 0 auto;
+        }
+        .single-image {
+            max-width: 800px;
+            margin: 20px auto;
+            display: block;
+        }
+        .math-equation {
+            overflow-x: auto;
+            padding: 10px 0;
+            text-align: center;
+        }
+        .prompt-cell {
+            width: 25%;
+        }
+    </style>
+</head>
+<body>
+    <h1>Project 5</h1>
+
+    <h2>Introduction</h2>
+    <p>This project is about playing with diffusion models, implementing diffusion sampling loops, and exploring the power of diffusion models. In the second part, we go deeper into the architecture of the diffusion model by implementing a unet and ddpm (Denoising Diffusion Probabilistic Models) from scratch.</p>
+
+    <h2>Part A - The Power of Diffusion Models</h2>
+    <p>In this part, we will use an existing diffusion model, DeepFloyd, to sample images. This will give us an understanding of how diffusion models work and how they can be used to generate images. This is a great way to get a feel for diffusion models before we implement them from scratch in the next part.</p>
+
+    <h3>Part 0 - Setup</h3>
+    <p>First, since diffusion takes a while, we need to choose our device. We will use GPUs since they are faster than CPUs. We have tried both using Google Colab and our local machine's metal GPU. Then, we choose the model we want to use -- DeepFloyd. To use it, we load the model, then we take some text embeddings that the model understands and use them to generate images.</p>
+
+    <p>We used the seed 276 to generate the images. This seed is used internally by the model to generate the images. Here are some of the images we generated with 2 different inference steps. Notice how the higher the inference step, the more detailed or clear the image becomes:</p>
+
+    <table class="table-3-col">
+        <tr>
+            <th class="prompt-cell">prompt</th>
+            <th>inference 10</th>
+            <th>inference 20</th>
+        </tr>
+        <tr>
+            <td class="prompt-cell">an oil painting of a snowy mountain village</td>
+            <td><img src="image.png" alt="mountain village inference 10"></td>
+            <td><img src="image-1.png" alt="mountain village inference 20"></td>
+        </tr>
+        <tr>
+            <td class="prompt-cell">a man wearing a hat</td>
+            <td><img src="image-2.png" alt="man with hat inference 10"></td>
+            <td><img src="image-3.png" alt="man with hat inference 20"></td>
+        </tr>
+        <tr>
+            <td class="prompt-cell">a rocket ship</td>
+            <td><img src="image-4.png" alt="rocket ship inference 10"></td>
+            <td><img src="image-5.png" alt="rocket ship inference 20"></td>
+        </tr>
+    </table>
+
+    <h2>Part 1 - Sampling Loops</h2>
+
+    <h3>1.1 - Implementing the forward process</h3>
+    <p>A key idea of diffusion models is to understand the noising process of an image. This is defined by adding Gaussian noise as such:</p>
+
+    <div class="math-equation">
+        $$ q(x_t | x_0) = N(x_t ; \sqrt{\bar\alpha_t} x_0, (1 - \bar\alpha_t)\mathbf{I})\tag{1}$$
+    </div>
+
+    <p>which is equivalent to:</p>
+
+    <div class="math-equation">
+        $$ x_t = \sqrt{\bar\alpha_t} x_0 + \sqrt{1 - \bar\alpha_t} \epsilon \quad \text{where}~ \epsilon \sim N(0, 1) \tag{2}$$
+    </div>
+
+    <p>To see this in action, we implement the forward process of the diffusion model. We start with a clean image and add noise to it. Here are some results given a certain timestep `t` for the Campenilli tower:</p>
+
+    <table class="table-4-col">
+        <tr>
+            <th>t</th>
+            <th>0</th>
+            <th>250</th>
+            <th>500</th>
+            <th>750</th>
+        </tr>
+        <tr>
+            <td>image</td>
+            <td><img src="image-6.png" alt="t=0"></td>
+            <td><img src="image-7.png" alt="t=250"></td>
+            <td><img src="image-8.png" alt="t=500"></td>
+            <td><img src="image-9.png" alt="t=750"></td>
+        </tr>
+    </table>
+
+    <h3>1.2 Classical Denoising</h3>
+    <p>The reason why this is important is that diffusion models make use of this noising process to denoise images into AI-generated images. But first, let's see how we can denoise images using classical methods. One can use a simple Gaussian filter to denoise images, though we will get pretty subpar results. Here are some results of denoising the Campenilli tower image using a Gaussian filter:</p>
+
+    <table class="table-4-col">
+        <tr>
+            <th>t</th>
+            <th>250</th>
+            <th>500</th>
+            <th>750</th>
+        </tr>
+        <tr>
+            <td>kernel size</td>
+            <td>3</td>
+            <td>5</td>
+            <td>9</td>
+        </tr>
+        <tr>
+            <td>noisy image</td>
+            <td><img src="image-6.png" alt="noisy t=250"></td>
+            <td><img src="image-7.png" alt="noisy t=500"></td>
+            <td><img src="image-8.png" alt="noisy t=750"></td>
+        </tr>
+        <tr>
+            <td>classically denoised image</td>
+            <td><img src="image-10.png" alt="denoised t=250"></td>
+            <td><img src="image-11.png" alt="denoised t=500"></td>
+            <td><img src="image-12.png" alt="denoised t=750"></td>
+        </tr>
+    </table>
+
+    <h3>1.3 - Implementing One Step Denoising</h3>
+    <p>Now that we have seen how classical denoising works, we can compare it to the denoising process of the diffusion model. Think of it like an AI predicting the denoised image. How we can do this is to first apply noise to the original image at a timestep `t`, then use the model to predict the denoised image given `t`. Here are some results of the denoising process of the Campenilli tower image:</p>
+
+    <table class="table-4-col">
+        <tr>
+            <th>t</th>
+            <th>250</th>
+            <th>500</th>
+            <th>750</th>
+        </tr>
+        <tr>
+            <td>noisy image</td>
+            <td><img src="image-6.png" alt="noisy t=250"></td>
+            <td><img src="image-7.png" alt="noisy t=500"></td>
+            <td><img src="image-8.png" alt="noisy t=750"></td>
+        </tr>
+        <tr>
+            <td>denoised image</td>
+            <td><img src="image-13.png" alt="AI denoised t=250"></td>
+            <td><img src="image-14.png" alt="AI denoised t=500"></td>
+            <td><img src="image-15.png" alt="AI denoised t=750"></td>
+        </tr>
+    </table>
+
+    <p>We can see that the denoised images are much better than the classically denoised images. Except, we see that the more `t` increases, the less accurate the denoised image becomes. One amazing thing is that we already generated fake images that "look" like the Campenilli tower. This is the power of diffusion models.</p>
+        <h3>1.4 - Implementing Iterative Denoising</h3>
+        <p>So actually, the true denoising process done in practice is to iteratively denoise the image. This is how we can improve the denoised image. To do this, we take a loop over a step in `t` and denoise the image iteratively. To iteratively, denoise, we have the following formula:</p>
+    
+        <div class="math-equation">
+            $$ x_{t'} = \frac{\sqrt{\bar\alpha_{t'}}\beta_t}{1 - \bar\alpha_t} x_0 + \frac{\sqrt{\alpha_t}(1 - \bar\alpha_{t'})}{1 - \bar\alpha_t} x_t + v_\sigma $$
+        </div>
+    
+        <p>where:</p>
+        <ul>
+            <li>$x_t$ is your image at timestep $t$</li>
+            <li>$x_{t'}$ is your noisy image at timestep $t'$ where $t' < t$ (less noisy)</li>
+            <li>$\bar\alpha_t$ is defined by `alphas_cumprod`, as explained above.</li>
+            <li>$\alpha_t = \bar\alpha_t / \bar\alpha_{t'}$</li>
+            <li>$\beta_t = 1 - \alpha_t$</li>
+            <li>$x_0$ is our current estimate of the clean image using equation 2 just like in section 1.3</li>
+        </ul>
+    
+        <p>The $v_\sigma$ is random noise, which in the case of DeepFloyd is also predicted. The process to compute this is not very important for us, so we supply a function, `add_variance`, to do this for you.</p>
+    
+        <p>Doing a strided timestep of 30 at each step, starting from timestep 990 all the way to zero, and then starting on the 10th in this strided timestep, we can get the results shown below:</p>
+    
+        <table class="table-5-col">
+            <tr>
+                <th>iteration</th>
+                <th>10</th>
+                <th>15</th>
+                <th>20</th>
+                <th>25</th>
+                <th>30</th>
+            </tr>
+            <tr>
+                <td>denoised image</td>
+                <td><img src="image-16.png" alt="iteration 10"></td>
+                <td><img src="image-17.png" alt="iteration 15"></td>
+                <td><img src="image-18.png" alt="iteration 20"></td>
+                <td><img src="image-19.png" alt="iteration 25"></td>
+                <td><img src="image-20.png" alt="iteration 30"></td>
+            </tr>
+        </table>
+    
+        <p>And we can compare this with our one step denoising and our classical denoising:</p>
+    
+        <table class="table-4-col">
+            <tr>
+                <th>Original</th>
+                <th>Iterative Denoising</th>
+                <th>One Step Denoising</th>
+                <th>Classical Denoising</th>
+            </tr>
+            <tr>
+                <td><img src="image-6.png" alt="Original"></td>
+                <td><img src="image-21.png" alt="Iterative Denoising"></td>
+                <td><img src="image-22.png" alt="One Step Denoising"></td>
+                <td><img src="image-23.png" alt="Classical Denoising"></td>
+            </tr>
+        </table>
+    
+        <p>We can see that the iterative denoising process is much better than the one-step denoising process and the classical denoising process.</p>
+    
+        <h3>1.5 - Diffusion Model Sampling</h3>
+        <p>Aside from denoising an image to get the Campenilli, we can also just start with random noise, and the model will automatically try to get an image on the manifold of real images! Here are some results of sampling images from random noise. Unfortunately, they are not great, but it is still interesting to see how the model tries to generate images from random noise:</p>
+    
+        <table class="table-5-col">
+            <tr>
+                <th>Sample 1</th>
+                <th>Sample 2</th>
+                <th>Sample 3</th>
+                <th>Sample 4</th>
+                <th>Sample 5</th>
+            </tr>
+            <tr>
+                <td><img src="image-24.png" alt="Sample 1"></td>
+                <td><img src="image-25.png" alt="Sample 2"></td>
+                <td><img src="image-26.png" alt="Sample 3"></td>
+                <td><img src="image-27.png" alt="Sample 4"></td>
+                <td><img src="image-28.png" alt="Sample 5"></td>
+            </tr>
+        </table>
+    
+        <h3>1.6 - Classifier-Free Guidance</h3>
+        <p>To improve the quality of the generated images, we can use a classifier-free guidance. Basically, we can give a text prompt to the model to guide it in generating images, kind of like with Dall-E. To make our images better, we can condition in on the prompt "a high quality photo". This gives us better results at the expense of diversity.</p>
+    
+        <p>To implement this, we have to not only predict the noise from the model with no condition, but also predict the noise from the model with the condition. We then take the difference between the two to get the noise that we want to add to the image with some guidance scale. In CFG, we compute both a noise estimate conditioned on a text prompt, and an unconditional noise estimate. We denote these $\epsilon_c$ and $\epsilon_u$. Then, we let our new noise estimate be</p>
+    
+        <div class="math-equation">
+            $$\epsilon = \epsilon_u + \gamma (\epsilon_c - \epsilon_u) \tag{4}$$
+        </div>
+    
+        <p>where $\gamma$ controls the strength of CFG. Notice that for $\gamma=0$, we get an unconditional noise estimate, and for $\gamma=1$ we get the conditional noise estimate. The magic happens when $\gamma > 1$. With the guidance scale of `7`, we can get the following results:</p>
+    
+        <table class="table-5-col">
+            <tr>
+                <th>Sample 1</th>
+                <th>Sample 2</th>
+                <th>Sample 3</th>
+                <th>Sample 4</th>
+                <th>Sample 5</th>
+            </tr>
+            <tr>
+                <td><img src="image-29.png" alt="Guided Sample 1"></td>
+                <td><img src="image-30.png" alt="Guided Sample 2"></td>
+                <td><img src="image-31.png" alt="Guided Sample 3"></td>
+                <td><img src="image-32.png" alt="Guided Sample 4"></td>
+                <td><img src="image-33.png" alt="Guided Sample 5"></td>
+            </tr>
+        </table>
+    
+        <p>We can see that the images are qualitatively better than the ones generated without the guidance scale.</p>
+    
+        <h3>1.7 - Image to Image Translation</h3>
+        <p>So we've seen two things so far: Getting an image similar to the Campenilli tower but not quite, and generating random realistic images from noise. But what if we want a similar image to the Campenilli tower, but also completely different? One thing we can actually do is to take an image and translate it to another image. This is called image to image translation. We can take the initial image, noise it a little, then denoise it to get a new image. Essentially, we are asking the model to get an image "similar" to the Campenilli tower but not quite. The more we noise the image, the more different the image will be from the original. Here are some results of image to image translation for different noise levels (defined by `i_start`, the timestep to start denoising where the lower the `i_start`, the more noise is added):</p>
+    
+        <table class="table-7-col">
+            <tr>
+                <th>Original</th>
+                <th>i_start = 1</th>
+                <th>i_start = 3</th>
+                <th>i_start = 5</th>
+                <th>i_start = 7</th>
+                <th>i_start = 10</th>
+                <th>i_start = 20</th>
+            </tr>
+            <tr>
+                <td><img src="image-6.png" alt="Original 1"></td>
+                <td><img src="image-39.png" alt="i_start 1"></td>
+                <td><img src="image-34.png" alt="i_start 3"></td>
+                <td><img src="image-35.png" alt="i_start 5"></td>
+                <td><img src="image-36.png" alt="i_start 7"></td>
+                <td><img src="image-37.png" alt="i_start 10"></td>
+                <td><img src="image-38.png" alt="i_start 20"></td>
+            </tr>
+            <tr>
+                <td><img src="image-40.png" alt="Original 2"></td>
+                <td><img src="image-41.png" alt="i_start 1"></td>
+                <td><img src="image-42.png" alt="i_start 3"></td>
+                <td><img src="image-43.png" alt="i_start 5"></td>
+                <td><img src="image-44.png" alt="i_start 7"></td>
+                <td><img src="image-45.png" alt="i_start 10"></td>
+                <td><img src="image-46.png" alt="i_start 20"></td>
+            </tr>
+            <tr>
+                <td><img src="image-47.png" alt="Original 3"></td>
+                <td><img src="image-48.png" alt="i_start 1"></td>
+                <td><img src="image-49.png" alt="i_start 3"></td>
+                <td><img src="image-50.png" alt="i_start 5"></td>
+                <td><img src="image-51.png" alt="i_start 7"></td>
+                <td><img src="image-52.png" alt="i_start 10"></td>
+                <td><img src="image-53.png" alt="i_start 20"></td>
+            </tr>
+        </table>
+        <h3>1.7.1 - Editing Hand Drawn and Web Images</h3>
+    <p>We can also use the model to edit hand-drawn images and web images with the same process. Here are some results of editing hand-drawn and web images:</p>
+
+    <table class="table-7-col">
+        <tr>
+            <th>Original</th>
+            <th>i_start = 1</th>
+            <th>i_start = 3</th>
+            <th>i_start = 5</th>
+            <th>i_start = 7</th>
+            <th>i_start = 10</th>
+            <th>i_start = 20</th>
+        </tr>
+        <tr>
+            <td><img src="image-54.png" alt="Original 1"></td>
+            <td><img src="image-55.png" alt="i_start 1"></td>
+            <td><img src="image-56.png" alt="i_start 3"></td>
+            <td><img src="image-57.png" alt="i_start 5"></td>
+            <td><img src="image-58.png" alt="i_start 7"></td>
+            <td><img src="image-59.png" alt="i_start 10"></td>
+            <td><img src="image-60.png" alt="i_start 20"></td>
+        </tr>
+        <tr>
+            <td><img src="image-61.png" alt="Original 2"></td>
+            <td><img src="image-62.png" alt="i_start 1"></td>
+            <td><img src="image-63.png" alt="i_start 3"></td>
+            <td><img src="image-64.png" alt="i_start 5"></td>
+            <td><img src="image-65.png" alt="i_start 7"></td>
+            <td><img src="image-66.png" alt="i_start 10"></td>
+            <td><img src="image-67.png" alt="i_start 20"></td>
+        </tr>
+        <tr>
+            <td><img src="image-68.png" alt="Original 3"></td>
+            <td><img src="image-69.png" alt="i_start 1"></td>
+            <td><img src="image-70.png" alt="i_start 3"></td>
+            <td><img src="image-71.png" alt="i_start 5"></td>
+            <td><img src="image-72.png" alt="i_start 7"></td>
+            <td><img src="image-73.png" alt="i_start 10"></td>
+            <td><img src="image-74.png" alt="i_start 20"></td>
+        </tr>
+    </table>
+
+    <p class="citation">NOTE: The first web image came from https://i.pinimg.com/originals/22/9c/56/229c56342f2303522a3189376909dfb5.jpg.</p>
+
+    <p>More Results (looking like an actual tree!):</p>
+
+    <table class="table-3-col">
+        <tr>
+            <th>Image 2 with i_start = 22</th>
+        </tr>
+        <tr>
+            <td><img src="image-75.png" alt="Tree result"></td>
+        </tr>
+    </table>
+
+    <h3>1.7.2 - Inpainting</h3>
+    <p>We can essentially run the same procedure on an image with a mask to inpaint the image. To do this, we can run the denoising loop with doing the following every loop:</p>
+
+    <div class="math-equation">
+        $$ x_t \leftarrow \textbf{m} * x_t + (1 - \textbf{m}) \text{forward}(x_{orig}, t)$$
+    </div>
+
+    <p>Essentially, we leave everything inside the edit mask alone, but we replace everything outside the edit mask with our original image -- with the correct amount of noise added for timestep $t$.</p>
+
+    <p>Here are some results of inpainting:</p>
+
+    <table class="table-4-col">
+        <tr>
+            <th>Original</th>
+            <th>Mask</th>
+            <th>To Replace</th>
+            <th>Inpainted</th>
+        </tr>
+        <tr>
+            <td><img src="image-76.png" alt="Original 1"></td>
+            <td><img src="image-77.png" alt="Mask 1"></td>
+            <td><img src="image-78.png" alt="To Replace 1"></td>
+            <td><img src="image-79.png" alt="Inpainted 1"></td>
+        </tr>
+        <tr>
+            <td><img src="image-80.png" alt="Original 2"></td>
+            <td><img src="image-81.png" alt="Mask 2"></td>
+            <td><img src="image-82.png" alt="To Replace 2"></td>
+            <td><img src="image-83.png" alt="Inpainted 2"></td>
+        </tr>
+        <tr>
+            <td><img src="image-84.png" alt="Original 3"></td>
+            <td><img src="image-85.png" alt="Mask 3"></td>
+            <td><img src="image-86.png" alt="To Replace 3"></td>
+            <td><img src="image-87.png" alt="Inpainted 3"></td>
+        </tr>
+    </table>
+
+    <h3>1.7.3 - Text-Conditioned Image to Image Translation</h3>
+    <p>Now, we will try to do condition our image to image translation. So far we have made it a "high quality photo", but what if we want to condition it on a text prompt?</p>
+
+    <p>Here is an example of our same images being conditioned on the prompt "a rocket ship":</p>
+
+    <table class="table-6-col">
+        <tr>
+            <th>i_start = 1</th>
+            <th>i_start = 3</th>
+            <th>i_start = 5</th>
+            <th>i_start = 7</th>
+            <th>i_start = 10</th>
+            <th>i_start = 20</th>
+        </tr>
+        <tr>
+            <td><img src="image-88.png" alt="i_start 1"></td>
+            <td><img src="image-89.png" alt="i_start 3"></td>
+            <td><img src="image-90.png" alt="i_start 5"></td>
+            <td><img src="image-91.png" alt="i_start 7"></td>
+            <td><img src="image-92.png" alt="i_start 10"></td>
+            <td><img src="image-93.png" alt="i_start 20"></td>
+        </tr>
+        <tr>
+            <td><img src="image-94.png" alt="i_start 1"></td>
+            <td><img src="image-95.png" alt="i_start 3"></td>
+            <td><img src="image-96.png" alt="i_start 5"></td>
+            <td><img src="image-97.png" alt="i_start 7"></td>
+            <td><img src="image-99.png" alt="i_start 10"></td>
+            <td><img src="image-100.png" alt="i_start 20"></td>
+        </tr>
+        <tr>
+            <td><img src="image-101.png" alt="i_start 1"></td>
+            <td><img src="image-102.png" alt="i_start 3"></td>
+            <td><img src="image-103.png" alt="i_start 5"></td>
+            <td><img src="image-104.png" alt="i_start 7"></td>
+            <td><img src="image-105.png" alt="i_start 10"></td>
+            <td><img src="image-106.png" alt="i_start 20"></td>
+        </tr>
+    </table>
+
+    <p>These are completely differently themed rockets! But actually we can use pretty much any prompt that the model understands. For example, taking image 2 with the prompt "an oil painting of people around a campfire", we get the following result:</p>
+    
+    <img src="image-107.png" alt="Campfire result" class="single-image">
+
+    <p>It's pretty cool to see my drawings transform into something else.</p>
+
+    <h3>1.8 - Visual Anagrams</h3>
+    <p>But we can do more than that! We can also do visual anagrams. We can take an image that when flipped, looks like another image. The algorithm is as follows:</p>
+
+    <div class="math-equation">
+        $$ \epsilon_1 = \text{UNet}(x_t, t, p_1) $$
+        $$ \epsilon_2 = \text{flip}(\text{UNet}(\text{flip}(x_t), t, p_2)) $$
+        $$ \epsilon = (\epsilon_1 + \epsilon_2) / 2 $$
+    </div>
+
+    <p>Essentially, we remove noise to make the image look like prompt 1, than add noise to make the flipped image look like prompt 2. Then we average the noise to get the final noise. Here are some results of visual anagrams:</p>
+
+    <table class="table-4-col">
+        <tr>
+            <th>Prompt 1</th>
+            <th>Prompt 2</th>
+            <th>Visual Anagram</th>
+            <th>Visual Anagram Flipped</th>
+        </tr>
+        <tr>
+            <td>an oil painting of an old man</td>
+            <td>an oil painting of people around a campfire</td>
+            <td><img src="image-108.png" alt="Anagram 1"></td>
+            <td><img src="image-109.png" alt="Anagram 1 Flipped"></td>
+        </tr>
+        <tr>
+            <td>a lithograph of a skull</td>
+            <td>a photo of a man</td>
+            <td><img src="image-110.png" alt="Anagram 2"></td>
+            <td><img src="image-111.png" alt="Anagram 2 Flipped"></td>
+        </tr>
+        <tr>
+            <td>a photo of a dog</td>
+            <td>a pencil</td>
+            <td><img src="image-112.png" alt="Anagram 3"></td>
+            <td><img src="image-113.png" alt="Anagram 3 Flipped"></td>
+        </tr>
+    </table>
+
+    <p>You can really see it. It's pretty cool!</p>
+
+    <h3>1.10 - Hybrid Images</h3>
+    <p>We can also do hybrid images. We can take two images and combine them to get a hybrid image. A hybrid image is an image that looks like one image from far away, but another image up close.</p>
+
+    <p>The algorithm is as follows:</p>
+
+    <div class="math-equation">
+        $$ \epsilon_1 = \text{UNet}(x_t, t, p_1) $$
+        $$ \epsilon_2 = \text{UNet}(x_t, t, p_2) $$
+        $$ \epsilon = f_\text{lowpass}(\epsilon_1) + f_\text{highpass}(\epsilon_2) $$
+    </div>
+
+    <p>where UNet is the diffusion model UNet, $f_\text{lowpass}$ is a low pass function, $f_\text{highpass}$ is a high pass function, and $p_1$ and $p_2$ are two different text prompt embeddings. Our final noise estimate is $\epsilon$. Here are some results of hybrid images:</p>
+
+    <table class="table-3-col">
+        <tr>
+            <th>Prompt 1</th>
+            <th>Prompt 2</th>
+            <th>Hybrid Image</th>
+        </tr>
+        <tr>
+            <td>a lithograph of waterfalls</td>
+            <td>a lithograph of a skull</td>
+            <td><img src="image-114.png" alt="Hybrid 1"></td>
+        </tr>
+        <tr>
+            <td>a rocket ship</td>
+            <td>a pencil</td>
+            <td><img src="image-115.png" alt="Hybrid 2"></td>
+        </tr>
+        <tr>
+            <td>a photo of a man</td>
+            <td>a photo of a dog</td>
+            <td><img src="image-116.png" alt="Hybrid 3"></td>
+        </tr>
+    </table>
+    <h1>Part B - Training Your own Diffusion Model!</h1>
+
+    <h2>Part 1: Training a Single-Step Denoising UNet</h2>
+
+    <h3>1.1 Implementing the UNet</h3>
+    <p>A denoising diffusion model is essentially a UNet. We can implement a UNet from scratch. The UNet is a neural network that takes an image and predicts the noise to add to the image to denoise it. The UNet is defined as follows:</p>
+
+    <img src="image-117.png" alt="UNet Architecture" class="single-image">
+
+    <p>We can train it on the mnist dataset so that it predicts the noise to add to the image to denoise it. Essentially, we recreate the noise process for the mnist dataset (sigma being how noisy it is):</p>
+
+    <img src="image-119.png" alt="MNIST noise process" class="single-image">
+
+    <h3>1.2 Training a Denoiser</h3>
+    <p>Then we can use a MSE loss to train the UNet. Our hyperparameters are as follows:</p>
+    <ul>
+        <li>batch size: 256</li>
+        <li>epochs: 5</li>
+        <li>hidden dimension: 128</li>
+        <li>optimizer: Adam with learning rate of 1e-4</li>
+    </ul>
+
+    <p>We get the following loss curve when training on images of sigma = 0.5:</p>
+
+    <img src="image-118.png" alt="Training loss curve" class="single-image">
+
+    <p>Here are some results of training the UNet on the mnist dataset:</p>
+
+    <table class="table-2-col">
+        <tr>
+            <th>Epoch = 1</th>
+            <th>Epoch = 5</th>
+        </tr>
+        <tr>
+            <td><img src="image-120.png" alt="Results at Epoch 1"></td>
+            <td><img src="image-121.png" alt="Results at Epoch 5"></td>
+        </tr>
+    </table>
+
+    <p>We can notice better denoising as the epochs increase.</p>
+
+    <h3>1.2.2 - Out of Distribution Testing</h3>
+    <p>We can also test the UNet on out of distribution data outside of sigma = 0.5. Results are below, but notice how it does well for some sigmas but begins to fail for sigma outside of 0.5:</p>
+
+    <img src="image-122.png" alt="Out of distribution testing" class="single-image">
+
+    <h2>Part 2: Training a Denoising Diffusion Probabilistic Model (DDPM)</h2>
+    <p>Instead of just predicting the clean image, we can also predict the noise given the timestep of how noisy the image is. This is called a Denoising Diffusion Probabilistic Model (DDPM). Essentially we can therefore make AI generated number images. We can implement this from scratch. The DDPM is defined as follows:</p>
+
+    <img src="image-123.png" alt="DDPM Architecture" class="single-image">
+
+    <p>with the following hyperparameters:</p>
+    <ul>
+        <li>batch size: 128</li>
+        <li>epochs: 20</li>
+        <li>hidden dimension: 64</li>
+        <li>optimizer: Adam with learning rate of 1e-3</li>
+        <li>learning rate scheduler: ExponentialLR with gamma of 0.1^(1/epochs)</li>
+    </ul>
+
+    <p>We get the following loss curve when training on the mnist dataset:</p>
+
+    <table class="table-2-col">
+        <tr>
+            <th>log scale</th>
+            <th>linear scale</th>
+        </tr>
+        <tr>
+            <td><img src="image-124.png" alt="Log scale loss"></td>
+            <td><img src="image-125.png" alt="Linear scale loss"></td>
+        </tr>
+    </table>
+
+    <p>Here are some results of training the DDPM on the mnist dataset:</p>
+
+    <table class="table-2-col">
+        <tr>
+            <th>Epoch = 5</th>
+            <th>Epoch = 20</th>
+        </tr>
+        <tr>
+            <td><img src="image-126.png" alt="Results at Epoch 5"></td>
+            <td><img src="image-127.png" alt="Results at Epoch 20"></td>
+        </tr>
+    </table>
+
+    <p>It's reasonable after 20 epochs. A problem is that we can't sample specific numbers. Let's fix that.</p>
+
+    <h3>2.3: Training a Conditional DDPM</h3>
+    <p>We can condition the DDPM on the number we want to generate. With that small tweak and the same hyperparameters as before, we can get the following loss curve when training on the mnist dataset. We apply classifier free guidance with a guidance scale of 5:</p>
+
+    <table class="table-2-col">
+        <tr>
+            <th>log scale</th>
+            <th>linear scale</th>
+        </tr>
+        <tr>
+            <td><img src="image-128.png" alt="Log scale loss"></td>
+            <td><img src="image-129.png" alt="Linear scale loss"></td>
+        </tr>
+
+        
+    </table>
+
+    <p>Here are some results of training the Conditional DDPM on the mnist dataset:</p>
+
+<table class="table-2-col">
+    <tr>
+        <th>Epoch = 5</th>
+        <th>Epoch = 20</th>
+    </tr>
+    <tr>
+        <td><img src="image-130.png" alt="Results at Epoch 5"></td>
+        <td><img src="image-131.png" alt="Results at Epoch 20"></td>
+    </tr>
+</table>
