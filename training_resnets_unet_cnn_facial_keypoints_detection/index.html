@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Training Neural Networks for Facial Keypoint Detection</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1, h2, h3 {
+            color: #2c3e50;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            vertical-align: middle;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        code {
+            background-color: #f4f4f4;
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        pre {
+            background-color: #f4f4f4;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .table-3-col td img, .table-4-col td img, .table-2-col td img {
+            width: calc(100% - 10px);
+            height: auto;
+            display: block;
+            margin: 0 auto;
+        }
+        .single-image {
+            max-width: 800px;
+            margin: 20px auto;
+            display: block;
+        }
+        .math-equation {
+            overflow-x: auto;
+            padding: 10px 0;
+            text-align: center;
+        }
+        blockquote {
+            margin: 0;
+            padding: 10px 20px;
+            background-color: #f9f9f9;
+            border-left: 5px solid #ddd;
+        }
+    </style>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.0/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+    <h1>Training Neural Networks for Facial Keypoint Detection</h1>
+    
+    <h2>Overview</h2>
+    
+    <p>Facial keypoint detection is a fundamental computer vision task that involves
+    identifying the locations of important facial landmarks such as eyes, nose, and
+    mouth corners in images. This task has numerous applications including face
+    recognition, emotion analysis, augmented reality, animation, medical diagnosis,
+    and more.</p>
+
+    <p>In this project, I implement and compare different approaches for
+    facial keypoint detection, ranging from direct coordinate regression to heatmap-
+    based detection methods. I also explore how transfer learning from
+    pretrained models such as Resnets and DINO models can improve performance on this task. I work with a dataset of facial images, where each face has been annotated with 68 keypoints represented as (x, y) coordinates.</p>
+    
+    <h2 id="table-of-contents">Table of Contents</h2>
+    
+    <ol>
+        <li><a href="#direct-coordinate-regression">Direct Coordinate Regression</a>
+            <ul>
+                <li><a href="#loss-curves-quantitative-analyses">Loss Curves + Quantitative Analyses + Analyzing Hyperparameters</a></li>
+                <li><a href="#predictions-on-test-images">Predictions on Test Images</a></li>
+            </ul>
+        </li>
+        <li><a href="#transfer-learning">Transfer Learning for Keypoint Detection</a>
+            <ul>
+                <li><a href="#pretrained-resnet">Pretrained ResNet Backbone</a></li>
+                <li><a href="#pretrained-dino">Pretrained DINO Backbone (Self-Supervised Vision Transformer)</a></li>
+                <li><a href="#discussion">Discussion</a></li>
+            </ul>
+        </li>
+        <li><a href="#heatmap-based">Heatmap-based Keypoint Detection</a>
+            <ul>
+                <li><a href="#heatmap-generation">Heatmap Generation</a></li>
+                <li><a href="#unet-heatmap">U-Net Heatmap Prediction</a></li>
+                <li><a href="#visualizing-heatmaps">Visualizing the Heatmaps</a></li>
+                <li><a href="#heatmap-results">Results</a></li>
+            </ul>
+        </li>
+        <li><a href="#conclusion">Conclusion and Challenges</a></li>
+    </ol>
+    
+    <h2 id="direct-coordinate-regression">Direct Coordinate Regression</h2>
+    <p><a href="#table-of-contents">Back to Table of Contents</a></p>
+    
+    <p>I use a CNN with convolutional layers, batch normalization, and ReLU activations with pooling layers and dropout, and finally fully connected layers that output 136 values (68 keypoints × 2 coordinates). The input image is a grayscale image of 224x224 pixels. The architecture follows a progressive deepening approach, starting with a 32-filter convolutional layer and doubling the filter count with each subsequent layer (32→64→128→256→512). Each convolutional block includes batch normalization, ReLU activation, max pooling, and dropout (with increasing rates from 0.1 to 0.5 to prevent overfitting as the network deepens). After five convolutional blocks, I flattened the output and connected it to three fully connected layers that gradually reduce dimensions (from convolutional output to 5000, then 1000, and finally 136 features). I initialized the fully connected layers with Xavier uniform initialization to ensure proper gradient flow during training. The forward method applies this sequence of operations systematically to transform the input image into the final 136-dimensional output representation. For all the visualizations, the ground truth keypoints are shown in red and the predicted keypoints are shown in blue.</p>
+    
+    <h3 id="loss-curves-quantitative-analyses">Loss Curves + Quantitative Analyses + Analyzing Hyperparameters</h3>
+    
+    <p>I analyzed several hyperparameters of this simple model to find the best model I could. To compare models, I looked at the average MSE loss of each model on the same set of images. In all of these comparisons, the average MSEs changed every time it was ran due to using different images. However, they are all around the same ballpark and are consistent across comparisons over different runs.</p>
+    
+    <p>In these comparisons, note that there is a preview of one image on both models, and then the overall MSE loss over $770$ test images are shown along with the average MSE loss for the said set of images. The relationship of the average MSEs are what are important. After several testings, the average MSE over $770$ images of any model is only around $+/- 1$ of the average MSE, while it's trends in performance relative to other models are mostly consistent.</p>
+    
+    <p>The first hyperparameter I tested was the learning rate of $0.001$ v.s. $0.0001$. I found that the $0.0001$ learning rate performed better. This makes sense because the model is very deep and the gradients are very small. Here are some results over one run of test images.</p>
+    
+    <p class="single-image"><img src="images/image.png" alt="Learning Rate Comparison"></p>
+    
+    <table>
+        <tr>
+            <th></th>
+            <th><code>Model 1</code> lr = 0.001</th>
+            <th><code>Model 2</code> lr = 0.0001</th>
+        </tr>
+        <tr>
+            <td>Loss Curve</td>
+            <td><img src="./loss_images/losses1.png" alt="loss curve"></td>
+            <td><img src="./loss_images/losses2.png" alt="loss curve"></td>
+        </tr>
+        <tr>
+            <td>Average MSE</td>
+            <td>21.5</td>
+            <td>8.6</td>
+        </tr>
+    </table>
+    
+    <p>The second hyperparameter I tested was convolutional filter size of $4x4$ v.s. $5x5$. These models use the superior learning rate. I found that the $5x5$ filter size performed better consistently. Results on a different set of $770$ test images are shown below.</p>
+    
+    <p class="single-image"><img src="images/image-4.png" alt="Filter Size Comparison"></p>
+    
+    <table>
+        <tr>
+            <th></th>
+            <th><code>Model 1</code> filter size = 4x4</th>
+            <th><code>Model 2</code> filter size = 5x5</th>
+        </tr>
+        <tr>
+            <td>Loss Curve</td>
+            <td><img src="./loss_images/losses2.png" alt="loss curve"></td>
+            <td><img src="./loss_images/losses3.png" alt="loss curve"></td>
+        </tr>
+        <tr>
+            <td>Average MSE</td>
+            <td>8.5</td>
+            <td>7.8</td>
+        </tr>
+    </table>
+    
+    <p>The third hyperparameter I tested was the loss criterion of MSE v.s. Smooth L1. These models use a $5x5$ filter size. I found that they are either negligible or that Smooth L1 sometimes performs better.</p>
+    
+    <p class="single-image"><img src="images/image-2.png" alt="Loss Criterion Comparison 1"></p>
+    <p class="single-image"><img src="images/image-5.png" alt="Loss Criterion Comparison 2"></p>
+    
+    <table>
+        <tr>
+            <th></th>
+            <th><code>Model 1</code> loss = MSE</th>
+            <th><code>Model 2</code> loss = Smooth L1</th>
+        </tr>
+        <tr>
+            <td>Loss Curve</td>
+            <td><img src="./loss_images/losses3.png" alt="loss curve"></td>
+            <td><img src="./loss_images/losses4.png" alt="loss curve"></td>
+        </tr>
+        <tr>
+            <td>Average MSE (1 of the runs)</td>
+            <td>9.96</td>
+            <td>9.97</td>
+        </tr>
+        <tr>
+            <td>Average MSE (Another run)</td>
+            <td>7.18</td>
+            <td>6.76</td>
+        </tr>
+    </table>
+    
+    <h3 id="predictions-on-test-images">Predictions on Test Images</h3>
+    
+    <p>Using the best hyperparameters, I have a model that is of learning rate $0.0001$, filter size $5x5$, and loss criterion of Smooth L1. I used this model to predict on the test images. The following are some of the predictions I made on the test images. It is a success.</p>
+    
+    <p class="single-image"><img src="images/image-3.png" alt="Test Image Predictions"></p>
+    
+    <h2 id="transfer-learning">Transfer Learning for Keypoint Detection</h2>
+    <p><a href="#table-of-contents">Back to Table of Contents</a></p>
+    
+    <h3 id="pretrained-resnet">Pretrained ResNet Backbone</h3>
+    
+    <p>Transfer learning is a powerful technique that leverages knowledge gained from training on one task to improve performance on a different but related task. A ResNet model is based on an architecture that uses residual connections and transfer learning to improve performance on various computer vision tasks. For my purposes, I intended to implement a pretrained ResNet backbone for facial keypoint detection to explore if transfer learning can improve performance for this task.</p>
+    
+    <p>A ResNet's final layer is a fully connected layer that does classification on extracted features. To adapt it for regression tasks like facial keypoint detection, I replaced the final fully connected layer with a new one, which is a regresssion head, that outputs 136 values (68 keypoints × 2 coordinates). To allow the ResNet to take grayscale images as input, I also convert the input image to 3 channels by repeating the grayscale channel three times. The rest of the ResNet architecture remains unchanged, preserving its feature extraction capabilities.</p>
+    
+    <p>Additionally, I implemented a training strategy where I freeze the weights of the ResNet backbone during the initial training phase. This allows the model to learn the regression task without modifying the pretrained features. After a few epochs, I unfreeze the ResNet layers and continue training with a lower learning rate to fine-tune the entire model. This approach helps retain the knowledge from the pretrained model while adapting it to the specific task of facial keypoint detection.</p>
+    
+    <h4>Results</h4>
+    
+    <p>It is able to work much better than the previous model. The average MSE loss is around $2.5$ on the test images, which is a significant improvement over the previous model. The following are some of the predictions I made on the test images.</p>
+    
+    <p class="single-image"><img src="images/image-6.png" alt="ResNet Predictions"></p>
+    
+    <p>Here is a comparison with the previous model, where Model 1 is the ResNet model and Model 2 is the previous model.</p>
+    
+    <p class="single-image"><img src="images/image-7.png" alt="ResNet vs Simple CNN Comparison"></p>
+    
+    <table>
+        <tr>
+            <th></th>
+            <th><code>Model 1</code> ResNet</th>
+            <th><code>Model 2</code> Simple CNN</th>
+        </tr>
+        <tr>
+            <td>Average MSE</td>
+            <td>2.9</td>
+            <td>7.0</td>
+        </tr>
+    </table>
+    
+    <p>The loss curves are also shown below.</p>
+    
+    <p class="single-image"><img src="./loss_images/resnet_losses.png" alt="ResNet Loss Curves"></p>
+    
+    <h3 id="pretrained-dino">Pretrained DINO Backbone (Self-Supervised Vision Transformer)</h3>
+    
+    <p>The DINO model is a self-supervised vision transformer that has been pretrained on a large dataset of images. It uses a transformer architecture to learn rich visual representations without requiring labeled data. The DINO model is designed to capture global and local features, making it suitable for various computer vision tasks, including facial keypoint detection. Instead of using a ResNet backbone, I explored using the DINO model.</p>
+    
+    <p>The output from a DINO model is in itself the features of the image with a dimension of it's <code>embedding size</code>. To adapt it for regression tasks like facial keypoint detection, I simply fed the output features into a regression head which is the same that I used for the ResNet model. To also make this model work with grayscale images, I used a similar approach as with the ResNet model, where I repeat the grayscale channel three times to create a 3-channel input.</p>
+    
+    <h4>Results</h4>
+    
+    <p>We first visualize the results. It seems reasonable and is able to detect keypoints around the face quite well.</p>
+    
+    <p class="single-image"><img src="images/image-8.png" alt="DINO Predictions"></p>
+    
+    <p>However, when comparing with the previous models, it turns out that the DINO model does not perform that well. Here is a comparison with the ResNet model, where Model 1 is the ResNet model and Model 2 is the DINO model.</p>
+    
+    <p class="single-image"><img src="images/image-9.png" alt="ResNet vs DINO Comparison"></p>
+    
+    <p>I then compared it with the simple CNN model, where Model 1 is the DINO model and Model 2 is the simple CNN model. The DINO model is doing just around or even slightly worse than the simple CNN model.</p>
+    
+    <p class="single-image"><img src="images/image-10.png" alt="DINO vs Simple CNN Comparison 1"></p>
+    <p class="single-image"><img src="images/image-11.png" alt="DINO vs Simple CNN Comparison 2"></p>
+    
+    <p>The loss curves are also shown below.</p>
+    <p class="single-image"><img src="./loss_images/dino_losses.png" alt="DINO Loss Curves"></p>
+    
+    <h3 id="discussion">Discussion</h3>
+    
+    <p>The ResNet model is still the best performing model. This actually came as a surprise to me but my theory for this is the difference between DINO's self-supervised learning and the supervised learning of the ResNet model. ResNet is able to learn features directly relevant to object recognition, makeing it good for keypoint detection. Meanwhile, DINO focuses on capturing global image semantics which may not prioritize the spatial precision needed for keypoint localization. DINO's self-supervised nature may also lead to less task-specific feature learning and so in this task it performs just around as well as the simple CNN model.</p>
+    
+    <h2 id="heatmap-based">Heatmap-based Keypoint Detection</h2>
+    <p><a href="#table-of-contents">Back to Table of Contents</a></p>
+    
+    <p>Direct coordinate regression has limitations in capturing the spatial structure
+    of keypoints. In this part, I implement a more sophisticated approach
+    inspired by Mask R-CNN, where each keypoint is represented by a heatmap.</p>
+    
+    <h3 id="heatmap-generation">Heatmap Generation</h3>
+    
+    <p>First, for each keypoint, I generate a Gaussian heatmap centered at the keypoint with proper normalization. I do this for the images' ground truth heatmaps.</p>
+    
+    <p class="single-image"><img src="images/image-12.png" alt="Heatmap Generation"></p>
+    
+    <h3 id="unet-heatmap">U-Net Heatmap Prediction</h3>
+    
+    <h4>Architecture</h4>
+    
+    <p>I then use a U-Net architecture to predict the heatmaps. The U-Net is a convolutional neural network architecture that is particularly effective for image segmentation tasks. It consists of an encoder-decoder structure with skip connections, allowing it to capture both local and global features. The U-Net takes the input image and generates a set of heatmaps, one for each keypoint. The specific U-Net architecture consists of a few downsampling and upsampling blocks with skip connections. It is described by this diagram, which is repurposed from a <a href="https://brayton-lordianto.github.io/Computer-Vision-Sites/project5/#part-b---training-your-own-diffusion-model">Computer Vision Project on Training Diffusion Models (Check Part 2)</a></p>
+    
+    <p class="single-image"><img src="images/IMG_06C3681018FB-1.jpeg" alt="U-Net Architecture"></p>
+    
+    <p>The diagram above uses a number of standard tensor operations defined as follows:</p>
+    
+    <p class="single-image"><img src="images/image-13.png" alt="Tensor Operations"></p>
+    
+    <h4>Implementation and Training</h4>
+    
+    <p>Note that we apply softmax to the output of the U-Net to ensure that the predicted heatmaps are normalized and sum to 1. This is important for interpreting the heatmaps as probabilities. We also do not flatten in the layers of the U-Net, as we want to keep the spatial structure of the heatmaps intact. Our output is of size $68 \times 224 \times 224$, where $68$ is the number of keypoints and $224 \times 224$ is the size of the input heatmap over the image.</p>
+    
+    <p>Our specific hyperparameters for the U-Net are as follows:</p>
+    <ul>
+        <li>Input image size: 224x224</li>
+        <li>Number of keypoints/heatmaps: 68</li>
+        <li>Number of channels (D in the diagram): 128</li>
+        <li>Batch size: 8</li>
+        <li>Learning rate: 5e-3</li>
+        <li>Loss function: MSE with "sum" reduction</li>
+        <li>Optimizer: Adam</li>
+        <li>Epochs: 25</li>
+    </ul>
+    
+    <p>We get the following loss curves for the U-Net model.</p>
+    <p class="single-image"><img src="./loss_images/losses_heatmap.png" alt="U-Net Loss Curves"></p>
+    
+    <h3 id="visualizing-heatmaps">Visualizing the Heatmaps</h3>
+    
+    <p>We get a pretty good prediction of the heatmaps. The left shows the original image, the middle shows the heatmap we get from the heatmap generation section, and the third image is the predicted heatmap from the unet, which is roughly similar to the middle image.</p>
+    
+    <p class="single-image"><img src="images/image-18.png" alt="Heatmap Visualization"></p>
+    
+    <h3 id="heatmap-results">Results</h3>
+    
+    <p>To predict the keypoints from the heatmap, we simply take the argmax of the heatmap for each keypoint. We can think of the heatmap as a probability distribution over the image, and the argmax (x,y) coordinate gives us the most likely location of the keypoint.</p>
+    
+    <p>Here are some results of the U-Net model on the test images. Again, the ground truth keypoints are shown in red and the predicted keypoints are shown in blue.</p>
+    <p class="single-image"><img src="images/image-14.png" alt="U-Net Test Results 1"></p>
+    <p class="single-image"><img src="images/image-15.png" alt="U-Net Test Results 2"></p>
+    
+    <p>Over a set of $770$ test images, we are able to achieve as good as the ResNet model. It reaches around the MSE of 2.3, which is around the similar ballpark as the ResNet model and even slightly better. Consequently, it is also much better than the simple CNN model and the DINO model. Here are two examples over the $770$ test images.</p>
+    
+    <p class="single-image"><img src="images/image-16.png" alt="U-Net vs Models Comparison 1"></p>
+    <p class="single-image"><img src="images/image-17.png" alt="U-Net vs Models Comparison 2"></p>
+    
+    <h2 id="conclusion">Conclusion</h2>
+    <p><a href="#table-of-contents">Back to Table of Contents</a></p>
+    
+    <p>In this project, I implemented and compared different approaches for facial keypoint detection, including direct coordinate regression, heatmap-based detection, and transfer learning with pretrained models. The ResNet model outperformed the simple CNN model and the DINO model, achieving an average MSE of around 2.9 on the test images. The U-Net model also performed well, achieving an average MSE of around 2.3.</p>
+    
+    <h3>Summary: Strengths & Weaknesses of Each Method</h3>
+    
+    <table>
+        <tr>
+            <th>Model</th>
+            <th>Strengths</th>
+            <th>Weaknesses</th>
+            <th>Approximate Average MSE</th>
+        </tr>
+        <tr>
+            <td>Simple CNN</td>
+            <td>Simple architecture, Strong baseline of performance</td>
+            <td>Sensitive to hyperparameters, Limited feature extraction capabilities</td>
+            <td>7-9</td>
+        </tr>
+        <tr>
+            <td>ResNet</td>
+            <td>Strong feature extraction, Transfer learning improves performance</td>
+            <td>Requires Fine-tuning, More complex architecture unless using pretrained model</td>
+            <td>2-3</td>
+        </tr>
+        <tr>
+            <td>DINO</td>
+            <td>Self-supervised learning, Global feature extraction for generalizable features</td>
+            <td>Less task-specific, May not prioritize spatial precision and does worse for keypoint detection</td>
+            <td>7-9</td>
+        </tr>
+        <tr>
+            <td>U-Net</td>
+            <td>Effective for heatmap-based detection, Captures local and global features</td>
+            <td>More complex architecture, Requires more computational resources but not too many parameters</td>
+            <td>2-3</td>
+        </tr>
+    </table>
+    
+    <h3>Challenges</h3>
+    
+    <p>I faced many challenges with computational resources, as training deep models like ResNet and DINO required significant computational power and time. I initially used Metal Performance Shaders (MPS) for GPU acceleration, but I encountered issues with performance and eventually switched to CUDA with A100 GPUs on Google Colab. I also had to experiment with various hyperparameters and architectures to find the best-performing models.</p>
+    
+</body>
+</html>
